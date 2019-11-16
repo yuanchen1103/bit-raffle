@@ -5,6 +5,7 @@ const Boom = require('boom');
 const color = require('color');
 const ext = require('commander');
 const jsonwebtoken = require('jsonwebtoken');
+const shortId = require('shortid');
 // const request = require('request');
 
 // The developer rig uses self-signed certificates.  Node doesn't accept them
@@ -20,6 +21,9 @@ const initialColor = color('#6441A4');      // set initial color; bleedPurple
 const bearerPrefix = 'Bearer ';             // HTTP authorization headers have this prefix
 const colorWheelRotation = 30;
 const channelColors = {};
+
+const gambles = {};
+const coinData = {};
 
 const STRINGS = {
   secretEnv: usingValue('secret'),
@@ -62,7 +66,6 @@ if (fs.existsSync(serverPathRoot + '.crt') && fs.existsSync(serverPathRoot + '.k
 const server = new Hapi.Server(serverOptions);
 
 (async () => {
-  // Handle a viewer request to cycle the color.
   server.route({
     method: 'POST',
     path: '/color/cycle',
@@ -74,6 +77,30 @@ const server = new Hapi.Server(serverOptions);
     method: 'GET',
     path: '/color/query',
     handler: colorQueryHandler
+  });
+
+  server.route({
+    method: 'POST',
+    path: '/gamble/start',
+    handler: gambleStartHandler
+  });
+
+  server.route({
+    method: 'GET',
+    path: '/gamble/query',
+    handler: gambleQueryHandler
+  });
+
+  server.route({
+    method: 'POST',
+    path: '/gamble/end',
+    handler: gambleEndHandler
+  });
+
+  server.route({
+    method: 'POST',
+    path: '/gamble/vote',
+    handler: gambleVoteHandler
   });
 
   // Start the server.
@@ -118,6 +145,76 @@ function verifyAndDecode (header) {
     }
   }
   throw Boom.unauthorized(STRINGS.invalidAuthHeader);
+}
+
+function gambleStartHandler (req) {
+  // Verify all requests.
+  verboseLog(req.payload);
+  const { options } = req.payload;
+
+  const gambleId = `gamble`;
+
+  gambles[gambleId] = options;
+
+  verboseLog(gambleId, gambles[gambleId]);
+
+  return gambleId;
+}
+
+function gambleQueryHandler (req) {
+  // Verify all requests.
+  // const payload = verifyAndDecode(req.headers.authorization);
+  const gambleId = `gamble`;
+
+  const options = gambles[gambleId];
+
+  verboseLog(gambleId, options);
+
+  return options;
+}
+
+function gambleEndHandler (req) {
+  // Verify all requests.
+  const { index } = req.payload || verifyAndDecode(req.headers.authorization);
+
+  const gambleId = 'gamble';
+
+  const totalVoters = gambles[gambleId].reduce((number, { voters }) => {
+    return voters ? number + voters.length : number;
+  }, 0);
+
+  gambles[gambleId][index].result = true;
+
+  const coins = Math.floor(totalVoters / (gambles[gambleId][index].voters || []).length)
+
+  for (let i = 0; i < (gambles[gambleId][index].voters || []).length; i++) {
+    if (!coinData[gambles[gambleId][index].voters[i]]) {
+      coinData[gambles[gambleId][index].voters[i]] = 0;
+    }
+    coinData[gambles[gambleId][index].voters[i]] += coins;
+  }
+
+  verboseLog(gambleId, gambles[gambleId]);
+
+  return {
+    coins,
+    winners: gambles[gambleId][index].voters || []
+  };
+}
+
+function gambleVoteHandler (req) {
+  // Verify all requests.
+  const { index, userId } = req.payload || verifyAndDecode(req.headers.authorization);
+
+  const gambleId = 'gamble';
+
+  gambles[gambleId][index].number = (gambles[gambleId][index].number || 0) + 1;
+  if (!gambles[gambleId][index].voter) gambles[gambleId][index].voter = [];
+  gambles[gambleId][index].voter.push(userId);
+
+  verboseLog(gambleId, gambles[gambleId]);
+
+  return gambleId;
 }
 
 function colorCycleHandler (req) {

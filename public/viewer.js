@@ -57,8 +57,9 @@ function logSuccess(hex, status) {
 $(function () {
   // when we click the cycle button
   $('#cycle').click(function () {
-  if(!token) { return twitch.rig.log('Not authorized'); }
-    twitch.rig.log('Requesting a color cycle');
-    $.ajax(requests.set);
+    twitch.bits.useBits('id');
+  // if(!token) { return twitch.rig.log('Not authorized'); }
+  //   twitch.rig.log('Requesting a color cycle');
+  //   $.ajax(requests.set);
   });
 });

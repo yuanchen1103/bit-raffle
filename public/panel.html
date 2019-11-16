@@ -1,25 +1,91 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <title>Viewer Page</title>
-</head>
-<body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
-    <div id="app" class="full-height"></div>
-    <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.3.1.min.js"
-            integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
-            crossorigin="anonymous"></script>
-    <script src="viewer.js" type="text/javascript"></script>
-    <h2>Hello, World!</h2>
-    <p>Would you care to cycle a color?</p>
-    <div>
-        <input type="button" id="cycle" disabled="disabled" value="Yes, I would" />
-    </div>
-    <div style="float: left; position: relative; left: 50%">
-        <div id="color" style="border-radius: 50px; transition: background-color 0.5s ease; margin-top: 30px; width: 100px; height: 100px; background-color: #6441A4; float: left; position: relative; left: -50%">
+    <link rel="stylesheet" href="main.css" />
+  </head>
+  <body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+    <div id="app">
+      <div class="option-container">
+        <div class="option-group" v-for="(opt, i) in options">
+          <span>{{opt.name}}</span>
+          <span class="delete" v-if="view === 1" @click="() => deleteOption(i)"
+            >Delete</span
+          >
+          <span
+            v-else
+            class="checked"
+            :style="{'color': checkedIndex === i ? '#42b983' : null}"
+            @click="() => checkedIndex = i"
+            >Checked</span
+          >
         </div>
+      </div>
+      <div class="fix-area">
+        <div class="input-group" v-if="view === 1">
+          <input type="text" v-model="inputVal" @keypress.enter="addOption" />
+          <button type="button" @click="addOption">Send</button>
+        </div>
+        <button class="start-button" @click="sendRequest">
+          {{view === 1 ? 'Start!' : 'End!'}}
+        </button>
+      </div>
     </div>
-    <div id="list">
-    </div>
-</body>
+    <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+    <script
+      src="https://code.jquery.com/jquery-3.3.1.min.js"
+      integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+      crossorigin="anonymous"
+    ></script>
+    <script src="viewer.js" type="text/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script>
+      //   const axios = require("axios").default;
+      Vue.component("b-input", {
+        template: "<li>This is a todo</li>"
+      });
+      var app = new Vue({
+        el: "#app",
+        data: {
+          inputVal: "",
+          options: [],
+          view: 1,
+          checkedIndex: 0
+        },
+        methods: {
+          addOption() {
+            if (this.inputVal.length) {
+              this.options.push({ name: this.inputVal });
+              this.inputVal = "";
+            }
+          },
+          deleteOption(index) {
+            this.options.splice(index, 1);
+          },
+          sendRequest() {
+            if (this.view === 1) {
+              axios
+                .post("http://localhost:8081/gamble/start", {
+                  options: this.options
+                })
+                .then(() => {
+                  this.view = 2;
+                });
+            } else {
+              axios
+                .post("http://localhost:8081/gamble/end", {
+                  index: this.checkedIndex
+                })
+                .then(response => {
+                  this.view = 1;
+                  this.options = [];
+                  console.log(response.data);
+                });
+            }
+          }
+        }
+      });
+    </script>
+  </body>
 </html>
