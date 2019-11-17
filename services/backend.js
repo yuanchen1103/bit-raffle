@@ -149,8 +149,10 @@ function verifyAndDecode (header) {
 
 function gambleStartHandler (req) {
   // Verify all requests.
-  verboseLog(req.payload);
+  const { channel_id: channelId, opaque_user_id: opaqueUserId } = verifyAndDecode(req.headers.authorization);
   const { options } = req.payload;
+
+  verboseLog(channelId, opaqueUserId);
 
   const gambleId = `gamble`;
 
@@ -163,7 +165,7 @@ function gambleStartHandler (req) {
 
 function gambleQueryHandler (req) {
   // Verify all requests.
-  // const payload = verifyAndDecode(req.headers.authorization);
+  const { channel_id: channelId, opaque_user_id: opaqueUserId } = verifyAndDecode(req.headers.authorization);
   const gambleId = `gamble`;
 
   const options = gambles[gambleId];
@@ -175,7 +177,8 @@ function gambleQueryHandler (req) {
 
 function gambleEndHandler (req) {
   // Verify all requests.
-  const { index } = req.payload || verifyAndDecode(req.headers.authorization);
+  const { channel_id: channelId, opaque_user_id: opaqueUserId } = verifyAndDecode(req.headers.authorization);
+  const { index } = req.payload;
 
   const gambleId = 'gamble';
 
@@ -204,7 +207,8 @@ function gambleEndHandler (req) {
 
 function gambleVoteHandler (req) {
   // Verify all requests.
-  const { index, userId } = req.payload || verifyAndDecode(req.headers.authorization);
+  const { channel_id: channelId, opaque_user_id: opaqueUserId } = verifyAndDecode(req.headers.authorization);
+  const { index, userId } = req.payload;
 
   const gambleId = 'gamble';
 

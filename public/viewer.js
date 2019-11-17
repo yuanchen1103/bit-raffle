@@ -31,8 +31,8 @@ twitch.onContext(function (context) {
 
 twitch.onAuthorized(function (auth) {
   // save our credentials
-  token = auth.token;
-  tuid = auth.userId;
+  window.token = auth.token;
+  window.tuid = auth.userId;
 
   // enable the button
   $('#cycle').removeAttr('disabled');
