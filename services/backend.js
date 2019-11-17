@@ -201,7 +201,8 @@ function gambleEndHandler (req) {
 
   return {
     coins,
-    winners: gambles[gambleId][index].voters || []
+    winners: gambles[gambleId][index].voters || [],
+    totalVoters
   };
 }
 

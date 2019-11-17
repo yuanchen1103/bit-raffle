@@ -6,29 +6,40 @@
   </head>
   <body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
     <div id="app">
-      <div class="option-container">
-        <div class="option-group" v-for="(opt, i) in options">
-          <span>{{opt.name}}</span>
-          <span class="delete" v-if="view === 1" @click="() => deleteOption(i)"
-            >Delete</span
+      <div v-if="view < 3">
+        <div class="input-group" v-if="view === 1">
+          <input
+            type="text"
+            v-model="inputVal"
+            @keypress.enter="addOption"
+            placeholder="Add Your Gambling Option…"
+          />
+        </div>
+        <div class="option-container">
+          <div
+            :class="{'option-group': true, 'selectable': view === 2, 'checked': checkedIndex === i && view === 2}"
+            v-for="(opt, i) in options"
+            @click="() => optionOnClick(i)"
           >
-          <span
-            v-else
-            class="checked"
-            :style="{'color': checkedIndex === i ? '#42b983' : null}"
-            @click="() => checkedIndex = i"
-            >Checked</span
-          >
+            <span>{{opt.name}}</span>
+            <img
+              src="img/delete-button.svg"
+              alt=""
+              v-if="view === 1"
+              @click="() => deleteOption(i)"
+            />
+          </div>
+        </div>
+        <div class="fix-area">
+          <button class="start-button" @click="sendRequest">
+            {{view === 1 ? 'Start!' : 'End!'}}
+          </button>
         </div>
       </div>
-      <div class="fix-area">
-        <div class="input-group" v-if="view === 1">
-          <input type="text" v-model="inputVal" @keypress.enter="addOption" />
-          <button type="button" @click="addOption">Send</button>
-        </div>
-        <button class="start-button" @click="sendRequest">
-          {{view === 1 ? 'Start!' : 'End!'}}
-        </button>
+      <div v-else>
+        <h3 class="end-title">Users Paticipated</h3>
+        <div class="number">{{totalVoters}}</div>
+        <button type="button" class="start-button" @click="startAnother">START ANOTHER</button>
       </div>
     </div>
     <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
@@ -42,12 +53,12 @@
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script>
       let instance;
-      window.Twitch.ext.onAuthorized(function (auth) {
+      window.Twitch.ext.onAuthorized(function(auth) {
         instance = axios.create({
           headers: {
-            'Authorization': 'Bearer ' + auth.token
+            Authorization: "Bearer " + auth.token
           }
-        })
+        });
       });
       //   const axios = require("axios").default;
       Vue.component("b-input", {
@@ -59,7 +70,8 @@
           inputVal: "",
           options: [],
           view: 1,
-          checkedIndex: 0
+          checkedIndex: undefined,
+          totalVoters: 0
         },
         methods: {
           addOption() {
@@ -70,6 +82,11 @@
           },
           deleteOption(index) {
             this.options.splice(index, 1);
+          },
+          optionOnClick(i) {
+            if (this.view === 2) {
+              this.checkedIndex = i;
+            }
           },
           sendRequest() {
             if (this.view === 1) {
@@ -86,11 +103,16 @@
                   index: this.checkedIndex
                 })
                 .then(response => {
-                  this.view = 1;
-                  this.options = [];
-                  console.log(response.data);
+                  this.totalVoters = response.data.totalVoters;
+                  this.view = 3;
                 });
             }
+          },
+          startAnother() {
+            this.totalVoters = 0;
+            this.checkedIndex = undefined;
+            this.options = [];
+            this.view = 1;
           }
         }
       });
