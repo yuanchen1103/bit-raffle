@@ -6,6 +6,7 @@ const color = require('color');
 const ext = require('commander');
 const jsonwebtoken = require('jsonwebtoken');
 const shortId = require('shortid');
+const fetch = require('isomorphic-fetch')
 // const request = require('request');
 
 // The developer rig uses self-signed certificates.  Node doesn't accept them
@@ -45,6 +46,7 @@ ext.
 
 const secret = Buffer.from(getOption('secret', 'ENV_SECRET'), 'base64');
 const clientId = getOption('clientId', 'ENV_CLIENT_ID');
+const TWITCH_API_BASE='https://api.twitch.tv/extensions'
 
 const serverOptions = {
   host: 'localhost',
@@ -148,19 +150,40 @@ function verifyAndDecode (header) {
 }
 
 function gambleStartHandler (req) {
-  // Verify all requests.
   const { channel_id: channelId, opaque_user_id: opaqueUserId } = verifyAndDecode(req.headers.authorization);
   const { options } = req.payload;
 
-  verboseLog(channelId, opaqueUserId);
-
+  // const gambleId = `gamble-${shortid.generate()}
   const gambleId = `gamble`;
 
   gambles[gambleId] = options;
-
   verboseLog(gambleId, gambles[gambleId]);
 
-  return gambleId;
+  return gambleId
+}
+
+function sendMsgToChatRoom (channelId, message) {
+  let token = jsonwebtoken.sign({
+    exp: Math.floor(Date.now() / 1000) + 60 * 60,
+    user_id: '29398066',
+    role: 'external',
+  }, secret)
+  verboseLog('generate dynamic token: ', token)
+
+  return fetch(`${TWITCH_API_BASE}/${clientId}/0.0.1/channels/${channelId}/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'Client-ID': clientId,
+    },
+    body: JSON.stringify({
+      text: message
+    })
+  }).then(data => data.json()).then(resp => {
+    verboseLog(resp)
+    return Promise.resolve(resp)
+  })
 }
 
 function gambleQueryHandler (req) {
@@ -199,11 +222,15 @@ function gambleEndHandler (req) {
 
   verboseLog(gambleId, gambles[gambleId]);
 
-  return {
-    coins,
-    winners: gambles[gambleId][index].voters || [],
-    totalVoters
-  };
+  let winners = gambles[gambleId][index].voters || []
+
+  let msg = `恭喜: ${winners.join(', ')}獲得了${(Number.isNaN(coins) ? 0 : coins)}個bits`
+  return sendMsgToChatRoom(channelId, msg).then(resp => {
+    return {
+      coins,
+      winners
+    }
+  })
 }
 
 function gambleVoteHandler (req) {
