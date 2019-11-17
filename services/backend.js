@@ -7,6 +7,7 @@ const ext = require('commander');
 const jsonwebtoken = require('jsonwebtoken');
 const shortId = require('shortid');
 const fetch = require('isomorphic-fetch')
+const dynamodbUtils = require('./utility/dynamodb')
 // const request = require('request');
 
 // The developer rig uses self-signed certificates.  Node doesn't accept them
@@ -153,13 +154,21 @@ function gambleStartHandler (req) {
   const { channel_id: channelId, opaque_user_id: opaqueUserId } = verifyAndDecode(req.headers.authorization);
   const { options } = req.payload;
 
-  // const gambleId = `gamble-${shortid.generate()}
-  const gambleId = `gamble`;
+  verboseLog(req.headers.authorization)
+  const gambleId = `gamble-${shortId.generate()}`
 
   gambles[gambleId] = options;
   verboseLog(gambleId, gambles[gambleId]);
 
-  return gambleId
+  return Promise.all(
+    options.map(option => {
+      option.id = `option-${shortId.generate()}`
+      option.gambleId = gambleId
+      return dynamodbUtils.put('Option', option)
+    })
+  ).then(_ => {
+    return gambleId
+  })
 }
 
 function sendMsgToChatRoom (channelId, message) {
@@ -180,73 +189,83 @@ function sendMsgToChatRoom (channelId, message) {
     body: JSON.stringify({
       text: message
     })
-  }).then(data => data.json()).then(resp => {
-    verboseLog(resp)
-    return Promise.resolve(resp)
+  }).then(data => {
+      verboseLog(data.status)
+    return Promise.resolve(data)
   })
 }
 
 function gambleQueryHandler (req) {
   // Verify all requests.
-  const { channel_id: channelId, opaque_user_id: opaqueUserId } = verifyAndDecode(req.headers.authorization);
-  const gambleId = `gamble`;
+  const payload = verifyAndDecode(req.headers.authorization);
+  verboseLog(req.headers.authorization)
+  const { channel_id: channelId, opaque_user_id: opaqueUserId } = payload
+  const { gambleId } = req.query
 
-  const options = gambles[gambleId];
-
-  verboseLog(gambleId, options);
-
-  return options;
+  return dynamodbUtils.query('Option', 'gambleId', { gambleId }).then(items => {
+    verboseLog(items)
+    return items
+    }).catch(err => {
+    verboseLog(err)
+    return []
+    })
 }
 
 function gambleEndHandler (req) {
   // Verify all requests.
   const { channel_id: channelId, opaque_user_id: opaqueUserId } = verifyAndDecode(req.headers.authorization);
-  const { index } = req.payload;
 
-  const gambleId = 'gamble';
+  const { gambleId } = req.payload
 
-  const totalVoters = gambles[gambleId].reduce((number, { voters }) => {
-    return voters ? number + voters.length : number;
-  }, 0);
+  return dynamodbUtils.query('Option', 'gambleId', { gambleId }).then(options => {
+    let opts = options.slice(0)
+    opts.sort((a, b) => {
+      const alen = (a.voters && Array.isArray(a.voters)) ? a.voters.length : 0
+      const blen = (b.voters && Array.isArray(b.voters)) ? b.voters.length : 0
+      return blen - alen
+    })
+    verboseLog(opts)
+    const winners = opts[0].voters || []
+    const totalVoters = opts.reduce((number, { voters }) => {
+      return voters ? number + voters.length : number;
+    }, 0)
+    const coins = Math.floor(totalVoters / (opts[0].voters || []).length)
 
-  gambles[gambleId][index].result = true;
-
-  const coins = Math.floor(totalVoters / (gambles[gambleId][index].voters || []).length)
-
-  for (let i = 0; i < (gambles[gambleId][index].voters || []).length; i++) {
-    if (!coinData[gambles[gambleId][index].voters[i]]) {
-      coinData[gambles[gambleId][index].voters[i]] = 0;
+    for (let i = 0; i < (opts[0].voters || []).length; i++) {
+      if (!coinData[opts[0].voters[i]]) {
+        coinData[opts[0].voters[i]] = 0;
+      }
+      coinData[opts[0].voters[i]] += coins;
     }
-    coinData[gambles[gambleId][index].voters[i]] += coins;
-  }
 
-  verboseLog(gambleId, gambles[gambleId]);
-
-  let winners = gambles[gambleId][index].voters || []
-
-  let msg = `恭喜: ${winners.join(', ')}獲得了${(Number.isNaN(coins) ? 0 : coins)}個bits`
-  return sendMsgToChatRoom(channelId, msg).then(resp => {
-    return {
-      coins,
-      winners
-    }
+    let msg = `恭喜: ${winners.join(', ')}獲得了${(Number.isNaN(coins) ? 0 : coins)}個bits`
+    return sendMsgToChatRoom(channelId, msg).then(resp => {
+      return {
+        coins,
+        winners
+      }
+    })
+  }).catch(err => {
+    verboseLog(err)
   })
 }
 
 function gambleVoteHandler (req) {
   // Verify all requests.
   const { channel_id: channelId, opaque_user_id: opaqueUserId } = verifyAndDecode(req.headers.authorization);
-  const { index, userId } = req.payload;
+  const { optionId, userId, gambleId } = req.payload;
+  verboseLog(optionId, userId, gambleId)
 
-  const gambleId = 'gamble';
-
-  gambles[gambleId][index].number = (gambles[gambleId][index].number || 0) + 1;
-  if (!gambles[gambleId][index].voter) gambles[gambleId][index].voter = [];
-  gambles[gambleId][index].voter.push(userId);
-
-  verboseLog(gambleId, gambles[gambleId]);
-
-  return gambleId;
+  return dynamodbUtils.get('Option', {id: optionId}).then(option => {
+    let updateObj = {}
+    updateObj.number = (option.number || 0) + 1
+    updateObj.voters = option.voters || []
+    updateObj.voters.push(userId)
+    return dynamodbUtils.update('Option', {id: optionId}, updateObj)
+  }).then(newObj => {
+    verboseLog(newObj)
+    return gambleId
+  })
 }
 
 function colorCycleHandler (req) {

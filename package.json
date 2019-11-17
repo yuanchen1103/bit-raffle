@@ -1,5 +1,5 @@
 {
-  "name": "extension-hello-world",
+  "name": "bit-raffle",
   "version": "1.0.0",
   "description": "Simple Hello World Twitch Extension",
   "main": "index.js",
@@ -14,6 +14,7 @@
   "author": "Emily Rose <amorelandra@twitch.tv>",
   "license": "Apache-2.0",
   "dependencies": {
+    "aws-sdk": "^2.573.0",
     "boom": "^7.2.0",
     "color": "^3.0.0",
     "commander": "^2.15.0",
