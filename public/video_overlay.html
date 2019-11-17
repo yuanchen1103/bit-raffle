@@ -40,7 +40,7 @@
     <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script>
-      let instance;
+      let instance = axios;
       window.Twitch.ext.onAuthorized(function(auth) {
         instance = axios.create({
           headers: {
@@ -61,12 +61,20 @@
           checkedIndex: undefined,
           totalVoters: 0
         },
-        created() {
+        mounted() {
           instance.get("http://localhost:8081/gamble/query").then(response => {
             this.options = response.data.options;
           });
-        },
-        mounted() {
+          window.timer = setInterval(() => {
+            instance
+              .get("http://localhost:8081/gamble/query")
+              .then(response => {
+                if (response.data.options.find(o => o.result)) {
+                  this.view = 3;
+                  clearInterval(window.timer);
+                }
+              });
+          }, 3000);
           window.Twitch.ext.bits.onTransactionComplete(function(transaction) {
             instance
               .post("http://localhost:8081/gamble/vote", {
@@ -76,6 +84,9 @@
                 this.view = 2;
               });
           });
+        },
+        destroyed() {
+          clearInterval(window.timer);
         },
         methods: {
           optionOnClick(i) {
